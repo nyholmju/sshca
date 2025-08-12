@@ -91,6 +91,7 @@ type (
 		Scope                                                    string
 		ScopeCAParams                                            map[string]CAParams
 		ClientSecret, IntroSpectClientID, IntroSpectClientSecret string     `json:"-"`
+		ClientUsesBasicAuth                                      bool
 		Op                                                       Opconfig   `json:"-"`
 		Signer                                                   ssh.Signer `json:"-"`
 		ClientConfig
@@ -488,12 +489,15 @@ func sshsignHandler(w http.ResponseWriter, r *http.Request) (err error) {
 func introspect(token string, ca CaConfig) (res IntrospectionResponse, err error) {
 	data := url.Values{}
 	data.Set("token", token)
-	data.Set("client_id", ca.IntroSpectClientID)
-	data.Set("client_secret", ca.IntroSpectClientSecret)
-	data.Set("scope", ca.Scope)
-
+	if !ca.ClientUsesBasicAuth {
+		data.Set("client_id", ca.IntroSpectClientID)
+		data.Set("client_secret", ca.IntroSpectClientSecret)
+	}
 	request, _ := http.NewRequest("POST", ca.Op.Introspect, strings.NewReader(data.Encode()))
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	if ca.ClientUsesBasicAuth {
+		request.SetBasicAuth(url.QueryEscape(ca.IntroSpectClientID), url.QueryEscape(ca.IntroSpectClientSecret))
+	}
 	resp, err := client.Do(request)
 	if err != nil {
 		return
